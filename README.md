@@ -3,6 +3,9 @@ JSONLD-Java Tools
 
 Tools for using JSONLD-Java
 
+[![Build Status](https://travis-ci.org/jsonld-java/jsonld-java-tools.svg?branch=master)](https://travis-ci.org/jsonld-java/jsonld-java-tools) 
+[![Coverage Status](https://coveralls.io/repos/jsonld-java/jsonld-java-tools/badge.svg?branch=master)](https://coveralls.io/r/jsonld-java/jsonld-java-tools?branch=master)
+
 ### Dependencies
 
 * Java-1.6+
