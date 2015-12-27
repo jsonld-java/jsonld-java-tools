@@ -114,7 +114,7 @@
 					<programs>
 						<program>
 							<mainClass>com.github.jsonldjava.tools.Playground</mainClass>
-							<name>jsonldplayground</name>
+							<id>jsonldplayground</id>
 						</program>
 					</programs>
 				</configuration>
