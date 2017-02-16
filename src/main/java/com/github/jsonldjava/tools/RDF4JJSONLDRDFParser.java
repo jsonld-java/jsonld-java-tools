@@ -1,28 +1,28 @@
 package com.github.jsonldjava.tools;
 
+import java.util.Optional;
 import java.util.Set;
 
-import org.openrdf.model.BNode;
-import org.openrdf.model.Graph;
-import org.openrdf.model.Literal;
-import org.openrdf.model.Model;
-import org.openrdf.model.Namespace;
-import org.openrdf.model.Resource;
-import org.openrdf.model.Statement;
-import org.openrdf.model.URI;
-import org.openrdf.model.Value;
-import org.openrdf.model.vocabulary.RDF;
-import org.openrdf.model.vocabulary.XMLSchema;
+import org.eclipse.rdf4j.model.BNode;
+import org.eclipse.rdf4j.model.Literal;
+import org.eclipse.rdf4j.model.Model;
+import org.eclipse.rdf4j.model.Namespace;
+import org.eclipse.rdf4j.model.Resource;
+import org.eclipse.rdf4j.model.Statement;
+import org.eclipse.rdf4j.model.IRI;
+import org.eclipse.rdf4j.model.Value;
+import org.eclipse.rdf4j.model.vocabulary.RDF;
+import org.eclipse.rdf4j.model.vocabulary.XMLSchema;
 
 import com.github.jsonldjava.core.JsonLdError;
 import com.github.jsonldjava.core.RDFDataset;
 
 /**
- * Implementation of RDFParser for Sesame-2.8.
+ * Implementation of RDFParser for RDF4J-2.2.
  *
  * @author Peter Ansell
  */
-class SesameJSONLDRDFParser implements com.github.jsonldjava.core.RDFParser {
+class RDF4JJSONLDRDFParser implements com.github.jsonldjava.core.RDFParser {
 
     public void setPrefix(RDFDataset result, String fullUri, String prefix) {
         result.setNamespace(fullUri, prefix);
@@ -41,23 +41,23 @@ class SesameJSONLDRDFParser implements com.github.jsonldjava.core.RDFParser {
         if (object instanceof Literal) {
             final Literal literal = (Literal) object;
             final String value = literal.getLabel();
-            final String language = literal.getLanguage();
+            final Optional<String> language = literal.getLanguage();
 
             String datatype = getResourceValue(literal.getDatatype());
 
             // In RDF-1.1, Language Literals internally have the datatype
             // rdf:langString
-            if (language != null && datatype == null) {
+            if (language.isPresent() && datatype == null) {
                 datatype = RDF.LANGSTRING.stringValue();
             }
 
             // In RDF-1.1, RDF-1.0 Plain Literals are now Typed Literals with
             // type xsd:String
-            if (language == null && datatype == null) {
+            if (!language.isPresent() && datatype == null) {
                 datatype = XMLSchema.STRING.stringValue();
             }
 
-            result.addQuad(subject, predicate, value, datatype, language, graphName);
+            result.addQuad(subject, predicate, value, datatype, language.orElse(null), graphName);
 
         } else {
             result.addQuad(subject, predicate, getResourceValue((Resource) object), graphName);
@@ -67,14 +67,14 @@ class SesameJSONLDRDFParser implements com.github.jsonldjava.core.RDFParser {
     private String getResourceValue(Resource subject) {
         if (subject == null) {
             return null;
-        } else if (subject instanceof URI) {
+        } else if (subject instanceof IRI) {
             return subject.stringValue();
         } else if (subject instanceof BNode) {
             return "_:" + subject.stringValue();
         }
 
-        throw new IllegalStateException("Did not recognise resource type: "
-                + subject.getClass().getName());
+        throw new IllegalStateException(
+                "Did not recognise resource type: " + subject.getClass().getName());
     }
 
     @Override
@@ -82,15 +82,13 @@ class SesameJSONLDRDFParser implements com.github.jsonldjava.core.RDFParser {
         final RDFDataset result = new RDFDataset();
         if (input instanceof Statement) {
             handleStatement(result, (Statement) input);
-        } else if (input instanceof Graph) {
-            if (input instanceof Model) {
-                final Set<Namespace> namespaces = ((Model) input).getNamespaces();
-                for (final Namespace nextNs : namespaces) {
-                    result.setNamespace(nextNs.getName(), nextNs.getPrefix());
-                }
+        } else if (input instanceof Model) {
+            final Set<Namespace> namespaces = ((Model) input).getNamespaces();
+            for (final Namespace nextNs : namespaces) {
+                result.setNamespace(nextNs.getName(), nextNs.getPrefix());
             }
 
-            for (final Statement nextStatement : (Graph) input) {
+            for (final Statement nextStatement : (Model) input) {
                 handleStatement(result, nextStatement);
             }
         }

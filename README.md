@@ -8,7 +8,7 @@ Tools for using JSONLD-Java
 
 ### Dependencies
 
-* Java-1.6+
+* Java-1.8+
 * Maven-3
 
 Playground

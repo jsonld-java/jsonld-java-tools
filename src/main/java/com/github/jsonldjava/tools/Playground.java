@@ -19,10 +19,10 @@ import joptsimple.OptionSpec;
 import joptsimple.ValueConversionException;
 import joptsimple.ValueConverter;
 
-import org.openrdf.model.Model;
-import org.openrdf.rio.RDFFormat;
-import org.openrdf.rio.RDFParserRegistry;
-import org.openrdf.rio.Rio;
+import org.eclipse.rdf4j.model.Model;
+import org.eclipse.rdf4j.rio.RDFFormat;
+import org.eclipse.rdf4j.rio.RDFParserRegistry;
+import org.eclipse.rdf4j.rio.Rio;
 
 import com.github.jsonldjava.core.JsonLdOptions;
 import com.github.jsonldjava.core.JsonLdProcessor;
@@ -43,8 +43,8 @@ public class Playground {
         final Map<String, RDFFormat> outputFormats = new HashMap<String, RDFFormat>();
 
         for (final RDFFormat format : RDFParserRegistry.getInstance().getKeys()) {
-            outputFormats.put(format.getName().replaceAll("-", "").replaceAll("/", "")
-                    .toLowerCase(), format);
+            outputFormats.put(
+                    format.getName().replaceAll("-", "").replaceAll("/", "").toLowerCase(), format);
         }
 
         return outputFormats;
@@ -53,8 +53,8 @@ public class Playground {
     public static void main(String[] args) throws Exception {
 
         final Map<String, RDFFormat> formats = getOutputFormats();
-        final Set<String> outputForms = new LinkedHashSet<String>(Arrays.asList("compacted",
-                "expanded", "flattened"));
+        final Set<String> outputForms = new LinkedHashSet<String>(
+                Arrays.asList("compacted", "expanded", "flattened"));
 
         final OptionParser parser = new OptionParser();
 
@@ -69,11 +69,8 @@ public class Playground {
         final OptionSpec<File> context = parser.accepts("context").withRequiredArg()
                 .ofType(File.class).describedAs("The context");
 
-        final OptionSpec<RDFFormat> outputFormat = parser
-                .accepts("format")
-                .withOptionalArg()
-                .ofType(String.class)
-                .withValuesConvertedBy(new ValueConverter<RDFFormat>() {
+        final OptionSpec<RDFFormat> outputFormat = parser.accepts("format").withOptionalArg()
+                .ofType(String.class).withValuesConvertedBy(new ValueConverter<RDFFormat>() {
                     @Override
                     public RDFFormat convert(String arg0) {
                         // Normalise the name to provide alternatives
@@ -95,17 +92,12 @@ public class Playground {
                     public Class<RDFFormat> valueType() {
                         return RDFFormat.class;
                     }
-                })
-                .defaultsTo(RDFFormat.NQUADS)
-                .describedAs(
-                        "The output file format to use. Defaults to nquads. Valid values are: "
-                                + formats.keySet());
+                }).defaultsTo(RDFFormat.NQUADS)
+                .describedAs("The output file format to use. Defaults to nquads. Valid values are: "
+                        + formats.keySet());
 
-        final OptionSpec<String> processingOption = parser
-                .accepts("process")
-                .withRequiredArg()
-                .ofType(String.class)
-                .required()
+        final OptionSpec<String> processingOption = parser.accepts("process").withRequiredArg()
+                .ofType(String.class).required()
                 .withValuesConvertedBy(new ValueConverter<String>() {
                     @Override
                     public String convert(String value) {
@@ -125,16 +117,11 @@ public class Playground {
                     public String valuePattern() {
                         return null;
                     }
-                })
-                .describedAs(
-                        "The processing to perform. Valid values are: "
-                                + getProcessingOptions().toString());
+                }).describedAs("The processing to perform. Valid values are: "
+                        + getProcessingOptions().toString());
 
-        final OptionSpec<String> outputForm = parser
-                .accepts("outputForm")
-                .withOptionalArg()
-                .ofType(String.class)
-                .defaultsTo("expanded")
+        final OptionSpec<String> outputForm = parser.accepts("outputForm").withOptionalArg()
+                .ofType(String.class).defaultsTo("expanded")
                 .withValuesConvertedBy(new ValueConverter<String>() {
                     @Override
                     public String convert(String value) {
@@ -154,8 +141,7 @@ public class Playground {
                     public Class<String> valueType() {
                         return String.class;
                     }
-                })
-                .describedAs(
+                }).describedAs(
                         "The way to output the results from fromRDF. Defaults to expanded. Valid values are: "
                                 + outputForms);
 
@@ -180,17 +166,18 @@ public class Playground {
 
         opts.setBase(options.valueOf(base));
         opts.outputForm = options.valueOf(outputForm);
-        opts.format = options.has(outputFormat) ? options.valueOf(outputFormat)
-                .getDefaultMIMEType() : "application/nquads";
+        opts.format = options.has(outputFormat) ? options.valueOf(outputFormat).getDefaultMIMEType()
+                : "application/nquads";
         final RDFFormat sesameOutputFormat = options.valueOf(outputFormat);
-        final RDFFormat sesameInputFormat = Rio.getParserFormatForFileName(
-                options.valueOf(inputFile).getName(), RDFFormat.JSONLD);
+        final RDFFormat sesameInputFormat = Rio
+                .getParserFormatForFileName(options.valueOf(inputFile).getName())
+                .orElse(RDFFormat.JSONLD);
 
         final String processingOptionValue = options.valueOf(processingOption);
 
         if (!options.valueOf(inputFile).exists()) {
-            System.out.println("Error: input file \"" + options.valueOf(inputFile)
-                    + "\" doesn't exist");
+            System.out.println(
+                    "Error: input file \"" + options.valueOf(inputFile) + "\" doesn't exist");
             parser.printHelpOn(System.out);
             return;
         }
@@ -207,8 +194,8 @@ public class Playground {
 
         if (hasContext(processingOptionValue) && options.has(context)) {
             if (!options.valueOf(context).exists()) {
-                System.out.println("Error: context file \"" + options.valueOf(context)
-                        + "\" doesn't exist");
+                System.out.println(
+                        "Error: context file \"" + options.valueOf(context) + "\" doesn't exist");
                 parser.printHelpOn(System.out);
                 return;
             }
@@ -220,13 +207,12 @@ public class Playground {
             final Model inModel = Rio.parse(new StringReader((String) inobj), opts.getBase(),
                     sesameInputFormat);
 
-            outobj = JsonLdProcessor.fromRDF(inModel, opts, new SesameJSONLDRDFParser());
+            outobj = JsonLdProcessor.fromRDF(inModel, opts, new RDF4JJSONLDRDFParser());
         } else if ("tordf".equals(processingOptionValue)) {
             opts.useNamespaces = true;
-            outobj = JsonLdProcessor
-                    .toRDF(inobj,
-                            new SesameJSONLDTripleCallback(Rio.createWriter(sesameOutputFormat,
-                                    System.out)), opts);
+            outobj = JsonLdProcessor.toRDF(inobj,
+                    new RDF4JJSONLDTripleCallback(Rio.createWriter(sesameOutputFormat, System.out)),
+                    opts);
         } else if ("expand".equals(processingOptionValue)) {
             outobj = JsonLdProcessor.expand(inobj, opts);
         } else if ("compact".equals(processingOptionValue)) {
@@ -240,8 +226,8 @@ public class Playground {
             outobj = JsonLdProcessor.normalize(inobj, opts);
         } else if ("frame".equals(processingOptionValue)) {
             if (ctxobj != null && !(ctxobj instanceof Map)) {
-                System.out
-                        .println("Invalid JSON-LD syntax; a JSON-LD frame must be a single object.");
+                System.out.println(
+                        "Invalid JSON-LD syntax; a JSON-LD frame must be a single object.");
                 parser.printHelpOn(System.out);
                 return;
             }
@@ -265,8 +251,8 @@ public class Playground {
     }
 
     private static String readFile(File in) throws IOException {
-        final BufferedReader buf = new BufferedReader(new InputStreamReader(
-                new FileInputStream(in), "UTF-8"));
+        final BufferedReader buf = new BufferedReader(
+                new InputStreamReader(new FileInputStream(in), "UTF-8"));
         String inobj = "";
         try {
             String line;
@@ -282,27 +268,37 @@ public class Playground {
 
     // private static void usage() {
     // System.out.println("Usage: jsonldplayground <options>");
-    // System.out.println("\tinput: a filename or JsonLdUrl to the rdf input (in rdfxml or n3)");
+    // System.out.println("\tinput: a filename or JsonLdUrl to the rdf input (in
+    // rdfxml or n3)");
     // System.out.println("\toptions:");
     // System.out
-    // .println("\t\t--ignorekeys <keys to ignore> : a (space separated) list of keys to ignore (e.g. @geojson)");
+    // .println("\t\t--ignorekeys <keys to ignore> : a (space separated) list of
+    // keys to ignore (e.g. @geojson)");
     // System.out.println("\t\t--base <uri>: base URI");
-    // System.out.println("\t\t--debug: Print out stack traces when errors occur");
-    // System.out.println("\t\t--expand <input>: expand the input  JSON-LD");
+    // System.out.println("\t\t--debug: Print out stack traces when errors
+    // occur");
+    // System.out.println("\t\t--expand <input>: expand the input JSON-LD");
     // System.out
-    // .println("\t\t--compact <input> <context> : compact the input JSON-LD applying the optional context file");
+    // .println("\t\t--compact <input> <context> : compact the input JSON-LD
+    // applying the optional context file");
     // System.out
-    // .println("\t\t--normalize <input> <format> : normalize the input JSON-LD outputting as format (defaults to nquads)");
+    // .println("\t\t--normalize <input> <format> : normalize the input JSON-LD
+    // outputting as format (defaults to nquads)");
     // System.out
-    // .println("\t\t--frame <input> <frame> : frame the input JSON-LD with the optional frame file");
+    // .println("\t\t--frame <input> <frame> : frame the input JSON-LD with the
+    // optional frame file");
     // System.out
-    // .println("\t\t--flatten <input> <context> : flatten the input JSON-LD applying the optional context file");
+    // .println("\t\t--flatten <input> <context> : flatten the input JSON-LD
+    // applying the optional context file");
     // System.out
-    // .println("\t\t--fromRDF <input> <format> : generate JSON-LD from the input rdf (format defaults to nquads)");
+    // .println("\t\t--fromRDF <input> <format> : generate JSON-LD from the
+    // input rdf (format defaults to nquads)");
     // System.out
-    // .println("\t\t--toRDF <input> <format> : generate RDF from the input JSON-LD (format defaults to nquads)");
+    // .println("\t\t--toRDF <input> <format> : generate RDF from the input
+    // JSON-LD (format defaults to nquads)");
     // System.out
-    // .println("\t\t--outputForm [compacted|expanded|flattened] : the way to output the results from fromRDF (defaults to expanded)");
+    // .println("\t\t--outputForm [compacted|expanded|flattened] : the way to
+    // output the results from fromRDF (defaults to expanded)");
     // System.out.println("\t\t--simplify : simplify the input JSON-LD");
     // System.exit(1);
     // }

@@ -3,31 +3,31 @@ package com.github.jsonldjava.tools;
 import java.util.List;
 import java.util.Map.Entry;
 
-import org.openrdf.model.Resource;
-import org.openrdf.model.Statement;
-import org.openrdf.model.URI;
-import org.openrdf.model.Value;
-import org.openrdf.model.ValueFactory;
-import org.openrdf.model.impl.LinkedHashModel;
-import org.openrdf.model.impl.ValueFactoryImpl;
-import org.openrdf.rio.ParseErrorListener;
-import org.openrdf.rio.ParserConfig;
-import org.openrdf.rio.RDFHandler;
-import org.openrdf.rio.RDFHandlerException;
-import org.openrdf.rio.RDFParseException;
-import org.openrdf.rio.helpers.ParseErrorLogger;
-import org.openrdf.rio.helpers.RDFParserHelper;
-import org.openrdf.rio.helpers.StatementCollector;
+import org.eclipse.rdf4j.model.Resource;
+import org.eclipse.rdf4j.model.Statement;
+import org.eclipse.rdf4j.model.IRI;
+import org.eclipse.rdf4j.model.Value;
+import org.eclipse.rdf4j.model.ValueFactory;
+import org.eclipse.rdf4j.model.impl.LinkedHashModel;
+import org.eclipse.rdf4j.model.impl.SimpleValueFactory;
+import org.eclipse.rdf4j.rio.ParseErrorListener;
+import org.eclipse.rdf4j.rio.ParserConfig;
+import org.eclipse.rdf4j.rio.RDFHandler;
+import org.eclipse.rdf4j.rio.RDFHandlerException;
+import org.eclipse.rdf4j.rio.RDFParseException;
+import org.eclipse.rdf4j.rio.helpers.ParseErrorLogger;
+import org.eclipse.rdf4j.rio.helpers.RDFParserHelper;
+import org.eclipse.rdf4j.rio.helpers.StatementCollector;
 
 import com.github.jsonldjava.core.JsonLdTripleCallback;
 import com.github.jsonldjava.core.RDFDataset;
 
 /**
- * Implementation of JsonLdTripleCallback for Sesame-2.8.
+ * Implementation of JsonLdTripleCallback for RDF4J-2.2.
  *
  * @author Peter Ansell
  */
-class SesameJSONLDTripleCallback implements JsonLdTripleCallback {
+class RDF4JJSONLDTripleCallback implements JsonLdTripleCallback {
 
     private ValueFactory vf;
 
@@ -37,19 +37,19 @@ class SesameJSONLDTripleCallback implements JsonLdTripleCallback {
 
     private final ParseErrorListener parseErrorListener;
 
-    public SesameJSONLDTripleCallback() {
+    public RDF4JJSONLDTripleCallback() {
         this(new StatementCollector(new LinkedHashModel()));
     }
 
-    public SesameJSONLDTripleCallback(RDFHandler nextHandler) {
-        this(nextHandler, ValueFactoryImpl.getInstance());
+    public RDF4JJSONLDTripleCallback(RDFHandler nextHandler) {
+        this(nextHandler, SimpleValueFactory.getInstance());
     }
 
-    public SesameJSONLDTripleCallback(RDFHandler nextHandler, ValueFactory vf) {
+    public RDF4JJSONLDTripleCallback(RDFHandler nextHandler, ValueFactory vf) {
         this(nextHandler, vf, new ParserConfig(), new ParseErrorLogger());
     }
 
-    public SesameJSONLDTripleCallback(RDFHandler nextHandler, ValueFactory vf,
+    public RDF4JJSONLDTripleCallback(RDFHandler nextHandler, ValueFactory vf,
             ParserConfig parserConfig, ParseErrorListener parseErrorListener) {
         this.handler = nextHandler;
         this.vf = vf;
@@ -67,9 +67,9 @@ class SesameJSONLDTripleCallback implements JsonLdTripleCallback {
         // This method is always called with three Resources as subject
         // predicate and object
         if (graph == null) {
-            result = vf.createStatement(createResource(s), vf.createURI(p), createResource(o));
+            result = vf.createStatement(createResource(s), vf.createIRI(p), createResource(o));
         } else {
-            result = vf.createStatement(createResource(s), vf.createURI(p), createResource(o),
+            result = vf.createStatement(createResource(s), vf.createIRI(p), createResource(o),
                     createResource(graph));
         }
 
@@ -89,7 +89,7 @@ class SesameJSONLDTripleCallback implements JsonLdTripleCallback {
         } else if (resource.startsWith("_:")) {
             return vf.createBNode(resource.substring(2));
         } else {
-            return vf.createURI(resource);
+            return vf.createIRI(resource);
         }
     }
 
@@ -103,8 +103,8 @@ class SesameJSONLDTripleCallback implements JsonLdTripleCallback {
 
         final Resource subject = createResource(s);
 
-        final URI predicate = vf.createURI(p);
-        final URI datatypeURI = datatype == null ? null : vf.createURI(datatype);
+        final IRI predicate = vf.createIRI(p);
+        final IRI datatypeURI = datatype == null ? null : vf.createIRI(datatype);
 
         Value object;
         try {
@@ -184,7 +184,8 @@ class SesameJSONLDTripleCallback implements JsonLdTripleCallback {
         if (handler != null) {
             try {
                 handler.startRDF();
-                for (final Entry<String, String> nextNamespace : dataset.getNamespaces().entrySet()) {
+                for (final Entry<String, String> nextNamespace : dataset.getNamespaces()
+                        .entrySet()) {
                     handler.handleNamespace(nextNamespace.getKey(), nextNamespace.getValue());
                 }
             } catch (final RDFHandlerException e) {
@@ -198,12 +199,12 @@ class SesameJSONLDTripleCallback implements JsonLdTripleCallback {
             }
             for (final RDFDataset.Quad quad : quads) {
                 if (quad.getObject().isLiteral()) {
-                    triple(quad.getSubject().getValue(), quad.getPredicate().getValue(), quad
-                            .getObject().getValue(), quad.getObject().getDatatype(), quad
-                            .getObject().getLanguage(), graphName);
+                    triple(quad.getSubject().getValue(), quad.getPredicate().getValue(),
+                            quad.getObject().getValue(), quad.getObject().getDatatype(),
+                            quad.getObject().getLanguage(), graphName);
                 } else {
-                    triple(quad.getSubject().getValue(), quad.getPredicate().getValue(), quad
-                            .getObject().getValue(), graphName);
+                    triple(quad.getSubject().getValue(), quad.getPredicate().getValue(),
+                            quad.getObject().getValue(), graphName);
                 }
             }
         }
