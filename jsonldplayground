@@ -6,9 +6,11 @@
 #
 # run ./jsonldplayground for the usage
 
-if [ ! -d "target/appassembler/bin" ]; then
-    mvn -quiet clean install -DskipTests
+TOP=$(dirname $0)
+
+if [ ! -d "${TOP}/target/appassembler/bin" ]; then
+    (cd "${TOP}"; mvn -quiet clean install -DskipTests)
 fi
 
-chmod u+x target/appassembler/bin/*
-target/appassembler/bin/jsonldplayground "$@"
+chmod u+x "${TOP}/target/appassembler/bin"/*
+"${TOP}/target/appassembler/bin/jsonldplayground" "$@"

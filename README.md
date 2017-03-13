@@ -27,3 +27,16 @@ run the following to get usage details:
 
     ./jsonldplayground --help
 
+### Support for basic authentication
+
+Authentication involves 5 options:
+
+| Option                | Description                       |
+|-----------------------|-----------------------------------|
+| `--username <user>`   | username for basic authentication |
+| `[--password <pass>]` | password for basic authentication, defaults to the value of the `PASSWORD` environment variable, if any, or the empty string. |
+| `[--authHost <host>]` | host scope of the authentication, defaults to 'localhost'  |
+| `[--authPort <port>]` | port scope of the authentication, defaults to '443'  |
+| `[--isecure]`         | Similar to `curl -k` or `curl --insecure`: if unspecified, all SSL connections are secure by default; if specified, trust everything (do not use for production!) |
+
+
