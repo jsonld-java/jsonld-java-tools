@@ -7,6 +7,7 @@
 # run ./jsonldplayground for the usage
 
 if [ ! -d "target/appassembler/bin" ]; then
+    echo -e "Building with maven... (This could fail if you haven't previously run 'mvn install' on jsonld-java)\n">&2
     mvn -quiet clean install -DskipTests
 fi
 
