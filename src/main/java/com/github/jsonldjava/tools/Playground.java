@@ -6,11 +6,22 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.StringReader;
+import java.net.Socket;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLSession;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509ExtendedTrustManager;
+import javax.net.ssl.X509TrustManager;
 
 import joptsimple.OptionException;
 import joptsimple.OptionParser;
@@ -19,13 +30,27 @@ import joptsimple.OptionSpec;
 import joptsimple.ValueConversionException;
 import joptsimple.ValueConverter;
 
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.CredentialsProvider;
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
+import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.cache.BasicHttpCacheStorage;
+import org.apache.http.impl.client.cache.CacheConfig;
+import org.apache.http.impl.client.cache.CachingHttpClientBuilder;
 import org.eclipse.rdf4j.model.Model;
 import org.eclipse.rdf4j.rio.RDFFormat;
 import org.eclipse.rdf4j.rio.RDFParserRegistry;
 import org.eclipse.rdf4j.rio.Rio;
 
+import com.github.jsonldjava.core.DocumentLoader;
+import com.github.jsonldjava.core.JsonLdConsts;
+import com.github.jsonldjava.core.JsonLdApi;
 import com.github.jsonldjava.core.JsonLdOptions;
 import com.github.jsonldjava.core.JsonLdProcessor;
+import com.github.jsonldjava.core.RDFDataset;
+import com.github.jsonldjava.utils.JarCacheStorage;
 import com.github.jsonldjava.utils.JsonUtils;
 
 public class Playground {
@@ -48,6 +73,37 @@ public class Playground {
         }
 
         return outputFormats;
+    }
+
+    private static class InsecureX509TrustManager extends X509ExtendedTrustManager implements X509TrustManager {
+
+        public void checkClientTrusted(X509Certificate[] xcs, String string) {
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] xcs, String string) throws CertificateException {
+        }
+
+        public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+            return null;
+        }
+
+
+        @Override
+        public void checkClientTrusted(X509Certificate[] x509Certificates, String s, Socket socket) throws CertificateException {
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] x509Certificates, String s, Socket socket) throws CertificateException {
+        }
+
+        @Override
+        public void checkClientTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) throws CertificateException {
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) throws CertificateException {
+        }
     }
 
     public static void main(String[] args) throws Exception {
@@ -145,6 +201,22 @@ public class Playground {
                         "The way to output the results from fromRDF. Defaults to expanded. Valid values are: "
                                 + outputForms);
 
+        final OptionSpec<String> usernameOption = parser.accepts("username").withOptionalArg()
+                .ofType(String.class).describedAs("username for basic authentication credentials");
+
+        final OptionSpec<String> passwordOption = parser.accepts("password").withOptionalArg()
+                .ofType(String.class).describedAs("password for basic authentication credentials (defaults to value of 'PASSWORD' environment property, if set, or empty string otherwise)");
+
+        final OptionSpec<String> authHostOption = parser.accepts("authHost").withOptionalArg()
+                .ofType(String.class).defaultsTo("localhost")
+                .describedAs("host authentication scope");
+
+        final OptionSpec<Integer> authPortOption = parser.accepts("authPort").withOptionalArg()
+                .ofType(Integer.class).defaultsTo(443)
+                .describedAs("host port authentication scope");
+
+        final OptionSpec<Void> authInsecureOption = parser.accepts("insecure","Similar to `curl -k` or `curl --insecure`: if unspecified, all SSL connections are secure by default; if specified, trust everything (do not use for production!)");
+
         OptionSet options = null;
 
         try {
@@ -167,7 +239,7 @@ public class Playground {
         opts.setBase(options.valueOf(base));
         opts.outputForm = options.valueOf(outputForm);
         opts.format = options.has(outputFormat) ? options.valueOf(outputFormat).getDefaultMIMEType()
-                : "application/nquads";
+                : JsonLdConsts.APPLICATION_NQUADS;
         final RDFFormat sesameOutputFormat = options.valueOf(outputFormat);
         final RDFFormat sesameInputFormat = Rio
                 .getParserFormatForFileName(options.valueOf(inputFile).getName())
@@ -184,6 +256,85 @@ public class Playground {
         // if base is currently null, set it
         if (opts.getBase() == null || opts.getBase().equals("")) {
             opts.setBase(options.valueOf(inputFile).toURI().toASCIIString());
+        }
+
+        if (options.hasArgument(usernameOption)) {
+            final String username = options.valueOf(usernameOption);
+            final String envPassword = System.getenv("PASSWORD");
+            final String password = options.hasArgument(passwordOption)
+                    ? options.valueOf(passwordOption)
+                    : (null != envPassword) ? envPassword : "";
+            final String authHost = options.valueOf(authHostOption);
+            final Integer authPort = options.valueOf(authPortOption);
+
+            final DocumentLoader documentLoader = new DocumentLoader();
+
+            final CredentialsProvider credsProvider = new BasicCredentialsProvider();
+            credsProvider.setCredentials(
+                    new AuthScope(authHost, authPort),
+                    new UsernamePasswordCredentials(username, password));
+
+            final CacheConfig cacheConfig = CacheConfig.custom()
+                    .setMaxCacheEntries(1000)
+                    .setMaxObjectSize(1024 * 128).build();
+
+            if (options.has(authInsecureOption)) {
+
+                final SSLContext ctx = SSLContext.getInstance("TLS");
+                final X509TrustManager tm = new InsecureX509TrustManager();
+                ctx.init(null, new TrustManager[] { tm }, null);
+
+                final HostnameVerifier v = new HostnameVerifier() {
+
+                    @Override
+                    public boolean verify(String s, SSLSession sslSession) {
+                        return true;
+                    }
+                };
+
+                final SSLConnectionSocketFactory sslsf = new SSLConnectionSocketFactory(ctx, v);
+
+                final CloseableHttpClient httpClient = CachingHttpClientBuilder
+                        .create()
+                        // allow caching
+                        .setCacheConfig(cacheConfig)
+                        // Wrap the local JarCacheStorage around a BasicHttpCacheStorage
+                        .setHttpCacheStorage(
+                                new JarCacheStorage(null, cacheConfig, new BasicHttpCacheStorage(
+                                        cacheConfig)))
+
+                        // Add in the credentials provider
+                        .setDefaultCredentialsProvider(credsProvider)
+
+                        // insecure ssl connections
+                        .setSSLSocketFactory(sslsf)
+
+                        // When you are finished setting the properties, call build
+                        .build();
+                documentLoader.setHttpClient(httpClient);
+                opts.setDocumentLoader(documentLoader);
+
+            } else {
+
+                final CloseableHttpClient httpClient = CachingHttpClientBuilder
+                        .create()
+                        // allow caching
+                        .setCacheConfig(cacheConfig)
+                        // Wrap the local JarCacheStorage around a BasicHttpCacheStorage
+                        .setHttpCacheStorage(
+                                new JarCacheStorage(null, cacheConfig, new BasicHttpCacheStorage(
+                                        cacheConfig)))
+
+                        // Add in the credentials provider
+                        .setDefaultCredentialsProvider(credsProvider)
+
+                        // When you are finished setting the properties, call build
+                        .build();
+
+                documentLoader.setHttpClient(httpClient);
+                opts.setDocumentLoader(documentLoader);
+
+            }
         }
 
         if ("fromrdf".equals(processingOptionValue)) {
@@ -223,7 +374,26 @@ public class Playground {
             }
             outobj = JsonLdProcessor.compact(inobj, ctxobj, opts);
         } else if ("normalize".equals(processingOptionValue)) {
-            outobj = JsonLdProcessor.normalize(inobj, opts);
+            // see https://github.com/jsonld-java/jsonld-java/issues/193
+            // outobj = JsonLdProcessor.normalize(inobj, opts);
+
+            // see https://github.com/jsonld-java/jsonld-java/issues/194
+            // until this is fixed, it is necessary to clear the format so that JsonLdProcessor won't try to interpret it.
+            opts.format = null;
+
+            // If an output format is specified, add a callback to show the result.
+            Object result = JsonLdProcessor.toRDF(
+                    inobj,
+                    options.has(outputFormat)
+                            ? new RDF4JJSONLDTripleCallback(Rio.createWriter(sesameOutputFormat, System.out))
+                            : null,
+                    opts);
+            if (RDFDataset.class.isInstance(result)) {
+                RDFDataset rdfds = RDFDataset.class.cast(result);
+                outobj = new JsonLdApi(opts).normalize(rdfds);
+            } else
+                outobj = result;
+
         } else if ("frame".equals(processingOptionValue)) {
             if (ctxobj != null && !(ctxobj instanceof Map)) {
                 System.out.println(
@@ -244,7 +414,9 @@ public class Playground {
         if ("tordf".equals(processingOptionValue)) {
             // Already serialised above
         } else if ("normalize".equals(processingOptionValue)) {
-            System.out.println((String) outobj);
+            if (!options.has(outputFormat))
+                // if no output format was specified, then show the result.
+                System.out.println(JsonUtils.toPrettyString(outobj));
         } else {
             System.out.println(JsonUtils.toPrettyString(outobj));
         }
