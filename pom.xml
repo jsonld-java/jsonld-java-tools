@@ -8,7 +8,7 @@
 	</parent>
 	<modelVersion>4.0.0</modelVersion>
 	<artifactId>jsonld-java-tools</artifactId>
-        <version>0.11.0</version>
+        <version>0.11.1-SNAPSHOT</version>
 	<name>JSONLD Java :: Tools</name>
 	<description>JSON-LD Java tools</description>
 	<packaging>jar</packaging>
@@ -21,7 +21,7 @@
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>jsonld-java</artifactId>
-			<version>0.11.0</version>
+			<version>0.11.1-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>junit</groupId>
