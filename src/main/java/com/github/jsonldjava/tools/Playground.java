@@ -4,9 +4,10 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.StringReader;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
@@ -53,58 +54,10 @@ import com.github.jsonldjava.core.RDFDataset;
 import com.github.jsonldjava.utils.JarCacheStorage;
 import com.github.jsonldjava.utils.JsonUtils;
 
+/**
+ * A command-line-interface used to load and process JSON-LD and RDF files.
+ */
 public class Playground {
-
-    private static Set<String> getProcessingOptions() {
-        return new LinkedHashSet<String>(Arrays.asList("expand", "compact", "frame", "normalize",
-                "flatten", "fromrdf", "tordf"));
-    }
-
-    private static boolean hasContext(String opt) {
-        return "compact".equals(opt) || "frame".equals(opt) || "flatten".equals(opt);
-    }
-
-    private static Map<String, RDFFormat> getOutputFormats() {
-        final Map<String, RDFFormat> outputFormats = new HashMap<String, RDFFormat>();
-
-        for (final RDFFormat format : RDFParserRegistry.getInstance().getKeys()) {
-            outputFormats.put(
-                    format.getName().replaceAll("-", "").replaceAll("/", "").toLowerCase(), format);
-        }
-
-        return outputFormats;
-    }
-
-    private static class InsecureX509TrustManager extends X509ExtendedTrustManager implements X509TrustManager {
-
-        public void checkClientTrusted(X509Certificate[] xcs, String string) {
-        }
-
-        @Override
-        public void checkServerTrusted(X509Certificate[] xcs, String string) throws CertificateException {
-        }
-
-        public java.security.cert.X509Certificate[] getAcceptedIssuers() {
-            return null;
-        }
-
-
-        @Override
-        public void checkClientTrusted(X509Certificate[] x509Certificates, String s, Socket socket) throws CertificateException {
-        }
-
-        @Override
-        public void checkServerTrusted(X509Certificate[] x509Certificates, String s, Socket socket) throws CertificateException {
-        }
-
-        @Override
-        public void checkClientTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) throws CertificateException {
-        }
-
-        @Override
-        public void checkServerTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) throws CertificateException {
-        }
-    }
 
     public static void main(String[] args) throws Exception {
 
@@ -391,9 +344,9 @@ public class Playground {
             if (RDFDataset.class.isInstance(result)) {
                 RDFDataset rdfds = RDFDataset.class.cast(result);
                 outobj = new JsonLdApi(opts).normalize(rdfds);
-            } else
+            } else {
                 outobj = result;
-
+            }
         } else if ("frame".equals(processingOptionValue)) {
             if (ctxobj != null && !(ctxobj instanceof Map)) {
                 System.out.println(
@@ -414,64 +367,76 @@ public class Playground {
         if ("tordf".equals(processingOptionValue)) {
             // Already serialised above
         } else if ("normalize".equals(processingOptionValue)) {
-            if (!options.has(outputFormat))
+            if (!options.has(outputFormat)) {
                 // if no output format was specified, then show the result.
                 System.out.println(JsonUtils.toPrettyString(outobj));
+            }
         } else {
             System.out.println(JsonUtils.toPrettyString(outobj));
         }
     }
 
+    private static Set<String> getProcessingOptions() {
+        return new LinkedHashSet<String>(Arrays.asList("expand", "compact", "frame", "normalize",
+                "flatten", "fromrdf", "tordf"));
+    }
+
+    private static boolean hasContext(String opt) {
+        return "compact".equals(opt) || "frame".equals(opt) || "flatten".equals(opt);
+    }
+
+    private static Map<String, RDFFormat> getOutputFormats() {
+        final Map<String, RDFFormat> outputFormats = new HashMap<String, RDFFormat>();
+
+        for (final RDFFormat format : RDFParserRegistry.getInstance().getKeys()) {
+            outputFormats.put(
+                    format.getName().replaceAll("-", "").replaceAll("/", "").toLowerCase(), format);
+        }
+
+        return outputFormats;
+    }
+
     private static String readFile(File in) throws IOException {
-        final BufferedReader buf = new BufferedReader(
-                new InputStreamReader(new FileInputStream(in), "UTF-8"));
         String inobj = "";
-        try {
+        try (BufferedReader buf = Files.newBufferedReader(in.toPath(), StandardCharsets.UTF_8)){
             String line;
             while ((line = buf.readLine()) != null) {
                 line = line.trim();
                 inobj = (inobj) + line + "\n";
             }
-        } finally {
-            buf.close();
         }
         return inobj;
     }
 
-    // private static void usage() {
-    // System.out.println("Usage: jsonldplayground <options>");
-    // System.out.println("\tinput: a filename or JsonLdUrl to the rdf input (in
-    // rdfxml or n3)");
-    // System.out.println("\toptions:");
-    // System.out
-    // .println("\t\t--ignorekeys <keys to ignore> : a (space separated) list of
-    // keys to ignore (e.g. @geojson)");
-    // System.out.println("\t\t--base <uri>: base URI");
-    // System.out.println("\t\t--debug: Print out stack traces when errors
-    // occur");
-    // System.out.println("\t\t--expand <input>: expand the input JSON-LD");
-    // System.out
-    // .println("\t\t--compact <input> <context> : compact the input JSON-LD
-    // applying the optional context file");
-    // System.out
-    // .println("\t\t--normalize <input> <format> : normalize the input JSON-LD
-    // outputting as format (defaults to nquads)");
-    // System.out
-    // .println("\t\t--frame <input> <frame> : frame the input JSON-LD with the
-    // optional frame file");
-    // System.out
-    // .println("\t\t--flatten <input> <context> : flatten the input JSON-LD
-    // applying the optional context file");
-    // System.out
-    // .println("\t\t--fromRDF <input> <format> : generate JSON-LD from the
-    // input rdf (format defaults to nquads)");
-    // System.out
-    // .println("\t\t--toRDF <input> <format> : generate RDF from the input
-    // JSON-LD (format defaults to nquads)");
-    // System.out
-    // .println("\t\t--outputForm [compacted|expanded|flattened] : the way to
-    // output the results from fromRDF (defaults to expanded)");
-    // System.out.println("\t\t--simplify : simplify the input JSON-LD");
-    // System.exit(1);
-    // }
+    private static class InsecureX509TrustManager extends X509ExtendedTrustManager implements X509TrustManager {
+
+        public void checkClientTrusted(X509Certificate[] xcs, String string) {
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] xcs, String string) throws CertificateException {
+        }
+
+        public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+            return null;
+        }
+
+
+        @Override
+        public void checkClientTrusted(X509Certificate[] x509Certificates, String s, Socket socket) throws CertificateException {
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] x509Certificates, String s, Socket socket) throws CertificateException {
+        }
+
+        @Override
+        public void checkClientTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) throws CertificateException {
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) throws CertificateException {
+        }
+    }
+
 }
