@@ -4,24 +4,24 @@
 	<parent>
 		<artifactId>jsonld-java-parent</artifactId>
 		<groupId>com.github.jsonld-java</groupId>
-		<version>0.12.0</version>
+		<version>0.12.1</version>
 	</parent>
 	<modelVersion>4.0.0</modelVersion>
 	<artifactId>jsonld-java-tools</artifactId>
-        <version>0.12.1-SNAPSHOT</version>
+        <version>0.12.1</version>
 	<name>JSONLD Java :: Tools</name>
 	<description>JSON-LD Java tools</description>
 	<packaging>jar</packaging>
 
 	<properties>
-		<rdf4j.version>2.3.0</rdf4j.version>
+		<rdf4j.version>2.3.2</rdf4j.version>
 	</properties>
 
 	<dependencies>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>jsonld-java</artifactId>
-			<version>0.12.0</version>
+			<version>0.12.1</version>
 		</dependency>
 		<dependency>
 			<groupId>junit</groupId>
