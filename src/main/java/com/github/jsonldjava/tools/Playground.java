@@ -24,19 +24,12 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import javax.net.ssl.X509TrustManager;
 
-import joptsimple.OptionException;
-import joptsimple.OptionParser;
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
-import joptsimple.ValueConversionException;
-import joptsimple.ValueConverter;
-
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.impl.client.BasicCredentialsProvider;
-import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.client.cache.BasicHttpCacheStorage;
 import org.apache.http.impl.client.cache.CacheConfig;
 import org.apache.http.impl.client.cache.CachingHttpClientBuilder;
@@ -46,13 +39,20 @@ import org.eclipse.rdf4j.rio.RDFParserRegistry;
 import org.eclipse.rdf4j.rio.Rio;
 
 import com.github.jsonldjava.core.DocumentLoader;
-import com.github.jsonldjava.core.JsonLdConsts;
 import com.github.jsonldjava.core.JsonLdApi;
+import com.github.jsonldjava.core.JsonLdConsts;
 import com.github.jsonldjava.core.JsonLdOptions;
 import com.github.jsonldjava.core.JsonLdProcessor;
 import com.github.jsonldjava.core.RDFDataset;
 import com.github.jsonldjava.utils.JarCacheStorage;
 import com.github.jsonldjava.utils.JsonUtils;
+
+import joptsimple.OptionException;
+import joptsimple.OptionParser;
+import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
+import joptsimple.ValueConversionException;
+import joptsimple.ValueConverter;
 
 /**
  * A command-line-interface used to load and process JSON-LD and RDF files.
@@ -81,14 +81,14 @@ public class Playground {
         final OptionSpec<RDFFormat> outputFormat = parser.accepts("format").withOptionalArg()
                 .ofType(String.class).withValuesConvertedBy(new ValueConverter<RDFFormat>() {
                     @Override
-                    public RDFFormat convert(String arg0) {
+                    public RDFFormat convert(String inputFormat) {
                         // Normalise the name to provide alternatives
-                        final String formatName = arg0.replaceAll("-", "").replaceAll("/", "")
-                                .toLowerCase();
+                        final String formatName = inputFormat.replaceAll("-", "")
+                                .replaceAll("/", "").toLowerCase();
                         if (formats.containsKey(formatName)) {
                             return formats.get(formatName);
                         }
-                        throw new ValueConversionException("Format was not known: " + arg0
+                        throw new ValueConversionException("Format was not known: " + inputFormat
                                 + " (Valid values are: " + formats.keySet() + ")");
                     }
 
@@ -158,7 +158,8 @@ public class Playground {
                 .ofType(String.class).describedAs("username for basic authentication credentials");
 
         final OptionSpec<String> passwordOption = parser.accepts("password").withOptionalArg()
-                .ofType(String.class).describedAs("password for basic authentication credentials (defaults to value of 'PASSWORD' environment property, if set, or empty string otherwise)");
+                .ofType(String.class).describedAs(
+                        "password for basic authentication credentials (defaults to value of 'PASSWORD' environment property, if set, or empty string otherwise)");
 
         final OptionSpec<String> authHostOption = parser.accepts("authHost").withOptionalArg()
                 .ofType(String.class).defaultsTo("localhost")
@@ -168,7 +169,8 @@ public class Playground {
                 .ofType(Integer.class).defaultsTo(443)
                 .describedAs("host port authentication scope");
 
-        final OptionSpec<Void> authInsecureOption = parser.accepts("insecure","Similar to `curl -k` or `curl --insecure`: if unspecified, all SSL connections are secure by default; if specified, trust everything (do not use for production!)");
+        final OptionSpec<Void> authInsecureOption = parser.accepts("insecure",
+                "Similar to `curl -k` or `curl --insecure`: if unspecified, all SSL connections are secure by default; if specified, trust everything (do not use for production!)");
 
         OptionSet options = null;
 
@@ -223,22 +225,25 @@ public class Playground {
             final DocumentLoader documentLoader = new DocumentLoader();
 
             final CredentialsProvider credsProvider = new BasicCredentialsProvider();
-            credsProvider.setCredentials(
-                    new AuthScope(authHost, authPort),
+            credsProvider.setCredentials(new AuthScope(authHost, authPort),
                     new UsernamePasswordCredentials(username, password));
 
-            final CacheConfig cacheConfig = CacheConfig.custom()
-                    .setMaxCacheEntries(1000)
+            final CacheConfig cacheConfig = CacheConfig.custom().setMaxCacheEntries(1000)
                     .setMaxObjectSize(1024 * 128).build();
 
+            HttpClientBuilder builder = CachingHttpClientBuilder.create()
+                    // allow caching
+                    .setCacheConfig(cacheConfig)
+                    // Wrap the local JarCacheStorage around a
+                    // BasicHttpCacheStorage
+                    .setHttpCacheStorage(new JarCacheStorage(null, cacheConfig,
+                            new BasicHttpCacheStorage(cacheConfig)))
+                    .setDefaultCredentialsProvider(credsProvider);
+
             if (options.has(authInsecureOption)) {
-
                 final SSLContext ctx = SSLContext.getInstance("TLS");
-                final X509TrustManager tm = new InsecureX509TrustManager();
-                ctx.init(null, new TrustManager[] { tm }, null);
-
+                ctx.init(null, new TrustManager[] { new InsecureX509TrustManager() }, null);
                 final HostnameVerifier v = new HostnameVerifier() {
-
                     @Override
                     public boolean verify(String s, SSLSession sslSession) {
                         return true;
@@ -246,48 +251,12 @@ public class Playground {
                 };
 
                 final SSLConnectionSocketFactory sslsf = new SSLConnectionSocketFactory(ctx, v);
-
-                final CloseableHttpClient httpClient = CachingHttpClientBuilder
-                        .create()
-                        // allow caching
-                        .setCacheConfig(cacheConfig)
-                        // Wrap the local JarCacheStorage around a BasicHttpCacheStorage
-                        .setHttpCacheStorage(
-                                new JarCacheStorage(null, cacheConfig, new BasicHttpCacheStorage(
-                                        cacheConfig)))
-
-                        // Add in the credentials provider
-                        .setDefaultCredentialsProvider(credsProvider)
-
-                        // insecure ssl connections
-                        .setSSLSocketFactory(sslsf)
-
-                        // When you are finished setting the properties, call build
-                        .build();
-                documentLoader.setHttpClient(httpClient);
-                opts.setDocumentLoader(documentLoader);
-
-            } else {
-
-                final CloseableHttpClient httpClient = CachingHttpClientBuilder
-                        .create()
-                        // allow caching
-                        .setCacheConfig(cacheConfig)
-                        // Wrap the local JarCacheStorage around a BasicHttpCacheStorage
-                        .setHttpCacheStorage(
-                                new JarCacheStorage(null, cacheConfig, new BasicHttpCacheStorage(
-                                        cacheConfig)))
-
-                        // Add in the credentials provider
-                        .setDefaultCredentialsProvider(credsProvider)
-
-                        // When you are finished setting the properties, call build
-                        .build();
-
-                documentLoader.setHttpClient(httpClient);
-                opts.setDocumentLoader(documentLoader);
-
+                // insecure ssl connections
+                builder = builder.setSSLSocketFactory(sslsf);
             }
+
+            documentLoader.setHttpClient(builder.build());
+            opts.setDocumentLoader(documentLoader);
         }
 
         if ("fromrdf".equals(processingOptionValue)) {
@@ -331,18 +300,20 @@ public class Playground {
             // outobj = JsonLdProcessor.normalize(inobj, opts);
 
             // see https://github.com/jsonld-java/jsonld-java/issues/194
-            // until this is fixed, it is necessary to clear the format so that JsonLdProcessor won't try to interpret it.
+            // until this is fixed, it is necessary to clear the format so that
+            // JsonLdProcessor won't try to interpret it.
             opts.format = null;
 
-            // If an output format is specified, add a callback to show the result.
-            Object result = JsonLdProcessor.toRDF(
-                    inobj,
+            // If an output format is specified, add a callback to show the
+            // result.
+            final Object result = JsonLdProcessor.toRDF(inobj,
                     options.has(outputFormat)
-                            ? new RDF4JJSONLDTripleCallback(Rio.createWriter(sesameOutputFormat, System.out))
+                            ? new RDF4JJSONLDTripleCallback(
+                                    Rio.createWriter(sesameOutputFormat, System.out))
                             : null,
                     opts);
             if (RDFDataset.class.isInstance(result)) {
-                RDFDataset rdfds = RDFDataset.class.cast(result);
+                final RDFDataset rdfds = RDFDataset.class.cast(result);
                 outobj = new JsonLdApi(opts).normalize(rdfds);
             } else {
                 outobj = result;
@@ -397,45 +368,52 @@ public class Playground {
     }
 
     private static String readFile(File in) throws IOException {
-        String inobj = "";
-        try (BufferedReader buf = Files.newBufferedReader(in.toPath(), StandardCharsets.UTF_8)){
+        final StringBuilder inobj = new StringBuilder(1024);
+        try (BufferedReader buf = Files.newBufferedReader(in.toPath(), StandardCharsets.UTF_8)) {
             String line;
             while ((line = buf.readLine()) != null) {
                 line = line.trim();
-                inobj = (inobj) + line + "\n";
+                inobj.append(line).append('\n');
             }
         }
-        return inobj;
+        return inobj.toString();
     }
 
-    private static class InsecureX509TrustManager extends X509ExtendedTrustManager implements X509TrustManager {
+    private static class InsecureX509TrustManager extends X509ExtendedTrustManager
+            implements X509TrustManager {
 
+        @Override
         public void checkClientTrusted(X509Certificate[] xcs, String string) {
         }
 
         @Override
-        public void checkServerTrusted(X509Certificate[] xcs, String string) throws CertificateException {
+        public void checkServerTrusted(X509Certificate[] xcs, String string)
+                throws CertificateException {
         }
 
+        @Override
         public java.security.cert.X509Certificate[] getAcceptedIssuers() {
             return null;
         }
 
-
         @Override
-        public void checkClientTrusted(X509Certificate[] x509Certificates, String s, Socket socket) throws CertificateException {
+        public void checkClientTrusted(X509Certificate[] x509Certificates, String s, Socket socket)
+                throws CertificateException {
         }
 
         @Override
-        public void checkServerTrusted(X509Certificate[] x509Certificates, String s, Socket socket) throws CertificateException {
+        public void checkServerTrusted(X509Certificate[] x509Certificates, String s, Socket socket)
+                throws CertificateException {
         }
 
         @Override
-        public void checkClientTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) throws CertificateException {
+        public void checkClientTrusted(X509Certificate[] x509Certificates, String s,
+                SSLEngine sslEngine) throws CertificateException {
         }
 
         @Override
-        public void checkServerTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) throws CertificateException {
+        public void checkServerTrusted(X509Certificate[] x509Certificates, String s,
+                SSLEngine sslEngine) throws CertificateException {
         }
     }
 

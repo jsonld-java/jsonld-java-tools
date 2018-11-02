@@ -3,9 +3,9 @@ package com.github.jsonldjava.tools;
 import java.util.List;
 import java.util.Map.Entry;
 
+import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.Resource;
 import org.eclipse.rdf4j.model.Statement;
-import org.eclipse.rdf4j.model.IRI;
 import org.eclipse.rdf4j.model.Value;
 import org.eclipse.rdf4j.model.ValueFactory;
 import org.eclipse.rdf4j.model.impl.LinkedHashModel;
@@ -23,7 +23,7 @@ import com.github.jsonldjava.core.JsonLdTripleCallback;
 import com.github.jsonldjava.core.RDFDataset;
 
 /**
- * Implementation of JsonLdTripleCallback for RDF4J-2.2.
+ * Implementation of JsonLdTripleCallback for RDF4J-2.
  *
  * @author Peter Ansell
  */

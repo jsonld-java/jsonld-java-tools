@@ -14,14 +14,14 @@
 	<packaging>jar</packaging>
 
 	<properties>
-		<rdf4j.version>2.3.2</rdf4j.version>
+		<rdf4j.version>2.4.1</rdf4j.version>
 	</properties>
 
 	<dependencies>
 		<dependency>
 			<groupId>${project.groupId}</groupId>
 			<artifactId>jsonld-java</artifactId>
-			<version>0.12.1</version>
+			<version>0.12.2-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>junit</groupId>
