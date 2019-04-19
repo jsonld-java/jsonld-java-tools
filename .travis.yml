@@ -5,5 +5,11 @@ cache:
   - $HOME/.m2
 jdk:
   - oraclejdk8
+matrix:
+  include:
+    - jdk: openjdk11
+      before_install:
+        - rm "${JAVA_HOME}/lib/security/cacerts"
+        - ln -s /etc/ssl/certs/java/cacerts "${JAVA_HOME}/lib/security/cacerts"
 after_success:
   - mvn clean test jacoco:report coveralls:report
